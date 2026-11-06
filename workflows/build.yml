@@ -1,0 +1,35 @@
+name: Build games
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - name: Compile for TrimUI Brick (aarch64)
+        run: |
+          docker run --rm --platform linux/arm64 -v "$PWD":/src -w /src arm64v8/ubuntu:18.04 \
+            bash -c 'apt-get update && apt-get install -y gcc libsdl2-dev && for g in snake3d hoppyroad; do if [ -f $g.c ]; then gcc -O2 -o $g $g.c $(sdl2-config --cflags --libs) -lm; fi; done'
+      - name: Package
+        run: |
+          pack() {
+            d=$1; b=$2
+            if [ -f $b ]; then
+              mkdir -p $d
+              cp $b $d/
+              printf '#!/bin/sh\ncd "$(dirname "$0")"\nchmod +x ./%s\n./%s > log.txt 2>&1\n' $b $b > $d/launch.sh
+              cp $d/launch.sh $d/mux_launch.sh
+            fi
+          }
+          pack Snake3D snake3d
+          pack HoppyRoad hoppyroad
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Games
+          path: |
+            Snake3D
+            HoppyRoad
